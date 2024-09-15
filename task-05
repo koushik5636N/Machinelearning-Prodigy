@@ -1,0 +1,74 @@
+import numpy as np
+import tensorflow as tf
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Input, Conv2D, MaxPooling2D, Flatten, Dense
+from tensorflow.keras.applications import VGG16
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import cv2
+
+# Load the dataset
+train_dir = '../input/train'
+test_dir = '../input/test'
+
+# Define the image dimensions
+img_width, img_height = 224, 224
+
+# Define the number of classes (food items)
+num_classes = 100
+
+# Define the calorie estimation model architecture
+calorie_model = Sequential()
+calorie_model.add(Conv2D(32, (3, 3), activation='relu', input_shape=(img_width, img_height, 3)))
+calorie_model.add(MaxPooling2D((2, 2)))
+calorie_model.add(Conv2D(64, (3, 3), activation='relu'))
+calorie_model.add(MaxPooling2D((2, 2)))
+calorie_model.add(Conv2D(128, (3, 3), activation='relu'))
+calorie_model.add(MaxPooling2D((2, 2)))
+calorie_model.add(Flatten())
+calorie_model.add(Dense(128, activation='relu'))
+calorie_model.add(Dense(1))  # Output layer for calorie estimation
+
+# Compile the calorie estimation model
+calorie_model.compile(optimizer='adam', loss='mean_squared_error')
+
+# Define the food recognition model architecture
+food_model = VGG16(weights='imagenet', include_top=False, input_shape=(img_width, img_height, 3))
+x = food_model.output
+x = Flatten()(x)
+x = Dense(num_classes, activation='softmax')(x)
+food_model = Model(inputs=food_model.input, outputs=x)
+
+# Compile the food recognition model
+food_model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accuracy'])
+
+# Data augmentation and preprocessing
+train_datagen = ImageDataGenerator(rescale=1./255, shear_range=0.2, zoom_range=0.2, horizontal_flip=True)
+test_datagen = ImageDataGenerator(rescale=1./255)
+
+train_generator = train_datagen.flow_from_directory(train_dir, target_size=(img_width, img_height), batch_size=32, class_mode='categorical')
+test_generator = test_datagen.flow_from_directory(test_dir, target_size=(img_width, img_height), batch_size=32, class_mode='categorical')
+
+# Train the models
+calorie_model.fit(train_generator, epochs=10, validation_data=test_generator)
+food_model.fit(train_generator, epochs=10, validation_data=test_generator)
+
+# Evaluate the models
+calorie_loss, calorie_mse = calorie_model.evaluate(test_generator)
+food_loss, food_accuracy = food_model.evaluate(test_generator)
+print(f'Calorie estimation MSE: {calorie_mse:.2f}')
+print(f'Food recognition accuracy: {food_accuracy:.2f}')
+
+# Use the models for food recognition and calorie estimation
+def recognize_food_and_estimate_calories(image):
+    image = cv2.resize(image, (img_width, img_height))
+    image = image / 255.0
+    image = np.expand_dims(image, axis=0)
+    food_prediction = food_model.predict(image)
+    calorie_prediction = calorie_model.predict(image)
+    return np.argmax(food_prediction), calorie_prediction[0][0]
+
+# Example usage:
+image = cv2.imread('example_image.jpg')
+food_id, calories = recognize_food_and_estimate_calories(image)
+print(f'Recognized food: {food_id}')
+print(f'Estimated calories: {calories:.2f}')
