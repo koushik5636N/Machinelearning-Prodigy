@@ -1,0 +1,79 @@
+# Kaggle Code - SVM for Cats and Dogs Classification
+
+# Import necessary libraries
+import os
+import numpy as np
+import cv2
+import matplotlib.pyplot as plt
+from sklearn.model_selection import train_test_split
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score, classification_report
+from tqdm import tqdm
+
+# Step 1: Load the dataset
+# The dataset on Kaggle is often stored in `/kaggle/input/<dataset-folder>`
+
+# Directory paths
+cat_dog_dir = '/kaggle/input/dogs-vs-cats/train/'
+
+# Prepare lists to hold image data and labels
+X = []
+y = []
+
+# Read images
+for img_name in tqdm(os.listdir(cat_dog_dir)):
+    img_path = os.path.join(cat_dog_dir, img_name)
+    label = 1 if 'dog' in img_name else 0  # 'dog' is labeled as 1, 'cat' as 0
+    img = cv2.imread(img_path, cv2.IMREAD_COLOR)  # Read the image in color
+    img = cv2.resize(img, (64, 64))  # Resize all images to 64x64 for uniformity
+    img = img.flatten()  # Flatten the image to 1D array
+    X.append(img)
+    y.append(label)
+
+# Convert lists to numpy arrays
+X = np.array(X)
+y = np.array(y)
+
+# Step 2: Train-Test Split
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# Step 3: Normalize data (optional but helps SVM performance)
+X_train = X_train / 255.0
+X_test = X_test / 255.0
+
+# Step 4: Train the SVM model
+print("Training SVM model...")
+
+# Initialize the SVM classifier
+svm_classifier = SVC(kernel='linear', random_state=42)
+
+# Fit the model on training data
+svm_classifier.fit(X_train, y_train)
+
+# Step 5: Make predictions on the test set
+y_pred = svm_classifier.predict(X_test)
+
+# Step 6: Evaluate the performance
+accuracy = accuracy_score(y_test, y_pred)
+print(f"Accuracy on test set: {accuracy * 100:.2f}%")
+
+# Classification report
+print("\nClassification Report:")
+print(classification_report(y_test, y_pred, target_names=['Cat', 'Dog']))
+
+# Step 7: Visualize some test predictions
+def show_samples(X_test, y_test, y_pred, num_samples=5):
+    plt.figure(figsize=(10, 5))
+    for i in range(num_samples):
+        idx = np.random.randint(0, len(y_test))
+        img = X_test[idx].reshape(64, 64, 3) * 255.0  # Reshape back to 64x64 and multiply by 255 to revert normalization
+        label_true = 'Dog' if y_test[idx] == 1 else 'Cat'
+        label_pred = 'Dog' if y_pred[idx] == 1 else 'Cat'
+        plt.subplot(1, num_samples, i+1)
+        plt.imshow(img.astype(np.uint8))
+        plt.title(f"True: {label_true}\nPred: {label_pred}")
+        plt.axis('off')
+    plt.show()
+
+# Show sample predictions
+show_samples(X_test, y_test, y_pred)
